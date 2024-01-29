@@ -84,7 +84,7 @@ class FieldworkDataModule(LightningDataModule):
         super().__init__()
         self.save_hyperparameters()
 
-        s2t = Speech2Text.from_pretrained(model_name, category_sym="<eng>")
+        s2t = Speech2Text.from_pretrained(model_name)
 
         preprocessor_train = S2TTask.build_preprocess_fn(s2t.s2t_train_args, train=True)
         preprocessor_test = S2TTask.build_preprocess_fn(s2t.s2t_train_args, train=False)

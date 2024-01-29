@@ -30,6 +30,8 @@ def model_add_new_tokens(model, new_tokens, initialize=None):
 
     model.vocab_size += len(new_tokens)
     model.criterion_att.size += len(new_tokens)
+    model.token_list += new_tokens
+    model.error_calculator.char_list += new_tokens
 
 
 def _extend_linear(layer, extend_size, initialize=None):

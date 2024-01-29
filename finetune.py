@@ -28,7 +28,7 @@ class FinetuneOWSM(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.s2t = Speech2Text.from_pretrained(model_name, category_sym="<eng>")
+        self.s2t = Speech2Text.from_pretrained(model_name)
         self.model = self.s2t.s2t_model
 
         model_add_new_tokens(self.model, new_tokens, initialize=new_tokens_initialize)
@@ -44,7 +44,8 @@ class FinetuneOWSM(LightningModule):
 
     def training_step(self, batch, batch_idx):
         uids, batch = batch
-        loss, output, _ = self.model(**{k: v.to(0) for k, v in batch.items()})
+        device = next(self.model.parameters()).device
+        loss, output, _ = self.model(**{k: v.to(device) for k, v in batch.items()})
         for key, value in output.items():
             if value is not None:
                 self._log("train", key, value.item())
@@ -69,7 +70,8 @@ class FinetuneOWSM(LightningModule):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         uids, batch = batch
-        loss, output, _ = self.model(**{k: v.to(0) for k, v in batch.items()})
+        device = next(self.model.parameters()).device
+        _, output, _ = self.model(**{k: v.to(device) for k, v in batch.items()})
         for key, value in output.items():
             self._validation_outputs[key].append(value.item())
 
@@ -95,7 +97,7 @@ def main(args):
     datamodule = FieldworkDataModule(new_tokens=new_tokens, **args)
     model = FinetuneOWSM(
         new_tokens=new_tokens,
-        new_tokens_initialize=datamodule.unk_id,
+        new_tokens_initialize=None,
         valid_ds_names=list(datamodule.valid_ds.keys()),
         test_ds_names=list(datamodule.test_ds.keys()),
         **args,
@@ -127,8 +129,8 @@ if __name__ == "__main__":
 
     # Dataset & Model
     parser.add_argument("--dataset_path", default=Path("fieldwork"), type=Path, help="Path to dataset folder")
-    parser.add_argument("--model_name", default="espnet/owsm_v3", help="Huggingface espnet model name")
-    parser.add_argument("--batch_size", type=int, default=8, help="Batch size for training")
+    parser.add_argument("--model_name", default="espnet/owsm_v3.1_ebf_base", help="Huggingface espnet model name")
+    parser.add_argument("--batch_size", type=int, default=4, help="Batch size for training")
     parser.add_argument("--tasks", type=str, nargs="+", default=["transcription", "underlying", "gloss", "translation"])
     parser.add_argument("--langs", type=str, nargs="+", default=["dolg1241", "kama1378", "ainu1240"])
 
