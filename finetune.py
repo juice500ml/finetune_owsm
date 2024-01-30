@@ -58,6 +58,7 @@ class FinetuneOWSM(LightningModule):
         langs = df["lang"].unique()
         for metric in metrics:
             _df = df[metric]
+            yield f"{metric}_full_all", _df.mean()
             for task in tasks:
                 yield f"{metric}_{task}_all", _df[df.task == task].mean()
             for lang in langs:
