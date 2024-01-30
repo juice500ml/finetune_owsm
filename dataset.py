@@ -31,7 +31,6 @@ class FieldworkDataset(Dataset):
         return uid, self.preprocessor(uid=uid, data=row)
 
     def _parse_data(self, root, tasks, langs):
-        # paths = list(root.glob(f"data/*/{self.split}.json"))
         paths = [root / f"data/{lang}/{self.split}.json" for lang in langs]
         return list(chain.from_iterable(
             self._parse_single_data(path, task)
@@ -46,9 +45,6 @@ class FieldworkDataset(Dataset):
         data = []
         for key, value in meta.items():
             speech = path.parent / "audio" / path.stem / key
-            if (self.split != "test") and (librosa.get_duration(filename=speech) > 30.0):
-                pass
-
             text_ctc = value["transcription"]
             text_prev = "<na>"
 
@@ -61,12 +57,15 @@ class FieldworkDataset(Dataset):
             }
             text = f"<{lang}><{task_id[task]}>{value[task]}"
 
-            data.append({
-                "speech": speech,
-                "text": text,
-                "text_prev": text_prev,
-                "text_ctc": text_ctc,
-            })
+            if (self.split == "test") or (
+                (librosa.get_duration(filename=speech) <= 30.0)
+            ):
+                data.append({
+                    "speech": speech,
+                    "text": text,
+                    "text_prev": text_prev,
+                    "text_ctc": text_ctc,
+                })
         return data
 
 

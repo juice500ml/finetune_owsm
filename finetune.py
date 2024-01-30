@@ -40,7 +40,7 @@ class FinetuneOWSM(LightningModule):
 
     def _log(self, split, key, value):
         if not self.trainer.sanity_checking:
-            self.log(f"{split}/{key}", value)
+            self.log(f"{split}/{key}", value, sync_dist=True)
 
     def training_step(self, batch, batch_idx):
         uids, batch = batch
