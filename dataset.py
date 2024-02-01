@@ -122,6 +122,7 @@ class FieldworkDataModule(LightningDataModule):
             shuffle=True,
             num_workers=4,
             collate_fn=self.collator_train,
+            persistent_workers=True,
         )
 
     def val_dataloader(self):
@@ -132,6 +133,7 @@ class FieldworkDataModule(LightningDataModule):
                 shuffle=False,
                 num_workers=4,
                 collate_fn=self.collator_test,
+                persistent_workers=True,
             )
             for ds in self.valid_ds.values()
         ]
@@ -142,7 +144,7 @@ class FieldworkDataModule(LightningDataModule):
                 ds,
                 batch_size=1,
                 shuffle=False,
-                num_workers=4,
+                num_workers=0,
                 collate_fn=self.collator_test,
             )
             for ds in self.test_ds.values()
