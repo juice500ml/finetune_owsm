@@ -16,7 +16,7 @@ def preprocessor_add_new_tokens(preprocessor, tokens):
 
     with tempfile.NamedTemporaryFile() as f:
         f.write(mp.SerializeToString())
-        preprocessor.sp = spm.SentencePieceProcessor(model_file=f.name)
+        preprocessor.tokenizer.sp = spm.SentencePieceProcessor(model_file=f.name)
 
     # Update token list
     token_list = preprocessor.token_id_converter.token_list + tokens

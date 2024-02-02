@@ -25,7 +25,7 @@ class FieldworkDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        row = self.data[index]
+        row = self.data[index].copy()
         row["speech"], _ = librosa.load(row["speech"], mono=True, sr=16_000)
         uid = f"{index:08d}"
         return uid, self.preprocessor(uid=uid, data=row)
