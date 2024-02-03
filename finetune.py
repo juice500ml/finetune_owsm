@@ -81,7 +81,7 @@ class FinetuneOWSM(LightningModule):
     def _ids2text(self, text_ids):
         text_ids = [i for i in text_ids if i >= 0]
         text_toks = self.preprocessor.token_id_converter.ids2tokens(text_ids)
-        text_toks = [t for t in text_tokens if not (t[0] == "<" and t[-1] == ">")]
+        text_toks = [t for t in text_toks if not (t[0] == "<" and t[-1] == ">")]
         return self.preprocessor.tokenizer.tokens2text(text_toks)
 
     def test_step(self, batch, batch_idx, dataloader_idx):
