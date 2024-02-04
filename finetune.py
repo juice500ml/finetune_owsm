@@ -132,7 +132,7 @@ def main(args):
 
     # Callbacks
     checkpoint_callback = ModelCheckpoint(
-        monitor="val/acc_full_all", save_top_k=1, save_last=True, mode="max")
+        monitor="train/acc", save_top_k=1, save_last=True, mode="max")
     early_stop_callback = EarlyStopping(
         monitor="val/acc_full_all", min_delta=0.00, patience=3, verbose=False, mode="max")
 
@@ -141,7 +141,7 @@ def main(args):
         # devices=args["devices"],
         fast_dev_run=args["fast_dev_run"],
         max_epochs=args["max_epochs"],
-        callbacks=[checkpoint_callback, early_stop_callback],
+        callbacks=[checkpoint_callback],
         deterministic="warn",
         default_root_dir=f"{getcwd()}/exps/{args['exp_name']}_{datetime.today().isoformat()}"
     )

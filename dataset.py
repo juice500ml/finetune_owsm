@@ -2,6 +2,7 @@ import json
 from itertools import chain, product
 from pathlib import Path
 
+import datasets
 import librosa
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import Dataset, DataLoader
@@ -11,6 +12,13 @@ from espnet2.tasks.s2t import S2TTask
 
 from utils import preprocessor_add_new_tokens
 
+
+task_id = {
+    "transcription": "asr",
+    "gloss": "st_gloss",
+    "underlying": "st_underlying",
+    "translation": "st_eng",
+}
 
 class FieldworkDataset(Dataset):
     def __init__(self, root, split, tasks, langs, preprocessor):
@@ -44,17 +52,16 @@ class FieldworkDataset(Dataset):
 
         data = []
         for key, value in meta.items():
+            if value["discard"]:
+                continue
+            if task == "translation" and value["translation_language"] != "en":
+                continue
+            
             speech = path.parent / "audio" / path.stem / key
             text_ctc = value["transcription"]
             text_prev = "<na>"
 
             lang = path.parent.name
-            task_id = {
-                "transcription": "asr",
-                "gloss": "st_gloss",
-                "underlying": "st_underlying",
-                "translation": "st_eng",
-            }
             text = f"<{lang}><{task_id[task]}>{value[task]}"
 
             if (self.split == "test") or (
@@ -67,6 +74,28 @@ class FieldworkDataset(Dataset):
                     "text_ctc": text_ctc,
                 })
         return data
+
+
+
+# def get_filter(task=None, lang=None):
+#     def filter_fn(row):
+#         if lang is not None and row["language"] != lang:
+#             return False
+#         if task is not None:
+#             if task == "translation":
+#                 return (not row["discard"]) and row["translation_language"] == "en"
+#         return not row["discard"]
+#     return filter_fn
+
+# def get_dataset_processor(task):
+#     def _map_fn(item):
+#         return {
+#             "speech": item["audio"],
+#             "text": f"<{item['language']}><{task_id[task]}>{item[task]}",
+#             "text_prev": "<na>",
+#             "text_ctc": item["transcription"],
+#         }
+#     return _map_fn
 
 
 class FieldworkDataModule(LightningDataModule):
