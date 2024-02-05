@@ -68,7 +68,7 @@ class FinetuneOWSM(LightningModule):
                 for t, l in product([row["task"], "full"], [row["lang"], seen, "all"]):
                     metric_values[f"{metric}_{t}_{l}"].append(row[metric])
 
-        results = dict()
+        results = list()
         for key, values in metric_values.items():
             v = sum(values) / len(values)
             self._log(split, key, v, verbose=verbose, sync_dist=True)
