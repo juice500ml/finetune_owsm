@@ -1,10 +1,24 @@
 import tempfile
 
 import torch.nn as nn
+from espnet2.tasks.s2t import S2TTask
 from espnet2.text.token_id_converter import TokenIDConverter
 
 import sentencepiece as spm
 import sentencepiece.sentencepiece_model_pb2 as spm_protobuf
+
+
+def beam_search_add_new_tokens(beam_search, model, tokens):
+    beam_search.token_list += tokens
+    beam_search.n_vocab += len(tokens)
+    beam_search.scorers["decoder"] = model.decoder
+    beam_search.scorers["scorefilter"].vocab_size += len(tokens)
+
+
+def converter_tokenizer_add_new_tokens(s2t_train_args, tokens):
+    preprocessor = S2TTask.build_preprocess_fn(s2t_train_args, train=False)
+    preprocessor_add_new_tokens(preprocessor, tokens)
+    return preprocessor.token_id_converter, preprocessor.tokenizer
 
 
 def preprocessor_add_new_tokens(preprocessor, tokens):

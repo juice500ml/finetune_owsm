@@ -8,12 +8,11 @@ from pathlib import Path
 import pandas as pd
 import torch
 from espnet2.bin.s2t_inference import Speech2Text
-from espnet2.tasks.s2t import S2TTask
 from pytorch_lightning import LightningModule, Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from torchmetrics.text import WordErrorRate, CharErrorRate, SacreBLEUScore
 
-from utils import model_add_new_tokens, preprocessor_add_new_tokens
+from utils import model_add_new_tokens, converter_tokenizer_add_new_tokens, beam_search_add_new_tokens
 from dataset import FieldworkDataModule
 
 
@@ -33,15 +32,18 @@ class FinetuneOWSM(LightningModule):
         self.save_hyperparameters()
 
         self.s2t = Speech2Text.from_pretrained(model_name)
-
         self.model = self.s2t.s2t_model
-        model_add_new_tokens(self.model, new_tokens, initialize=new_tokens_initialize)
 
-        self.preprocessor = S2TTask.build_preprocess_fn(self.s2t.s2t_train_args, train=False)
-        preprocessor_add_new_tokens(self.preprocessor, new_tokens)
+        # Add new tokens
+        model_add_new_tokens(self.model, new_tokens, initialize=new_tokens_initialize)
+        self.s2t.converter, self.s2t.tokenizer = converter_tokenizer_add_new_tokens(self.s2t.s2t_train_args, new_tokens)
+        beam_search_add_new_tokens(self.s2t.beam_search, self.model, new_tokens)
 
         self._valid_ds_names = valid_ds_names
         self._test_ds_names = test_ds_names
+
+        self._val_outputs = []
+        self._test_outputs = []
 
         self.unseen_langs = unseen_langs
         self.metrics = {
@@ -50,16 +52,28 @@ class FinetuneOWSM(LightningModule):
             "sacrebleu": SacreBLEUScore(),
         }
 
-    def _log(self, split, key, value, **kwargs):
+    def _log(self, split, key, value, verbose=False, **kwargs):
         if not self.trainer.sanity_checking:
             self.log(f"{split}/{key}", value, **kwargs)
+            if verbose:
+                print(f"{split}/{key}", value)
 
-    def _log_items(self, split, task, lang, output):
-        kwargs = dict(sync_dist=True, on_epoch=True)
-        seen = "seen" if lang in self.unseen_langs else "unseen"
-        for key, value in output.items():
-            for t, l in product([task, "full"], [lang, seen, "all"]):
-                self._log(split, f"{key}_{t}_{l}", value, **kwargs)
+    def _log_items(self, split, df, verbose=False):
+        metrics = sorted(set(df.keys()) - set(["task", "lang", "ref", "hyp"]))
+
+        metric_values = defaultdict(list)
+        for _, row in df.iterrows():
+            seen = "seen" if row["lang"] in self.unseen_langs else "unseen"
+            for metric in metrics:
+                for t, l in product([row["task"], "full"], [row["lang"], seen, "all"]):
+                    metric_values[f"{metric}_{t}_{l}"].append(row[metric])
+
+        results = dict()
+        for key, values in metric_values.items():
+            v = sum(values) / len(values)
+            self._log(split, key, v, verbose=verbose, sync_dist=True)
+            results.append({"name": f"{split}/{key}", "value": v})
+        return pd.DataFrame(results)
 
     def training_step(self, batch, batch_idx):
         uids, batch = batch
@@ -70,19 +84,47 @@ class FinetuneOWSM(LightningModule):
                 self._log("train", key, value.item(), on_step=True)
         return loss
 
+    def on_validation_epoch_start(self):
+        self._val_outputs.clear()
+
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         uids, batch = batch
         task, lang = self._valid_ds_names[dataloader_idx].split("_")
 
         device = next(self.model.parameters()).device
-        _, output, _ = self.model(**{k: v.to(device) for k, v in batch.items()})
-        self._log_items("val", task, lang, {k: v.item() for k, v in output.items()})
+        _, outputs, _ = self.model(**{k: v.to(device) for k, v in batch.items()})
+        outputs = {k: v.item() for k, v in outputs.items() if v is not None}
+        outputs.update({"task": task, "lang": lang})
+        self._val_outputs.append(outputs)
+
+    def _gather(self, outputs):
+        if self.trainer.num_devices > 1:
+            outputs = self.all_gather(outputs)
+            metrics = set(outputs[0].keys()) - set(["task", "lang"])
+            flattened_outputs = []
+            for output in outputs:
+                values = [output[m].detach().tolist() for m in metrics]
+                for vs in zip(*values):
+                    flattened_outputs.append({k: v for k, v in zip(metrics, vs)})
+                    flattened_outputs[-1].update({
+                        "task": output["task"], "lang": output["lang"],
+                    })
+            return flattened_outputs
+        else:
+            return outputs
+
+    def on_validation_epoch_end(self):
+        _val_outputs = self._gather(self._val_outputs)
+        self._log_items("val", pd.DataFrame(_val_outputs))
 
     def _ids2text(self, text_ids):
         text_ids = [i for i in text_ids if i >= 0]
-        text_toks = self.preprocessor.token_id_converter.ids2tokens(text_ids)
+        text_toks = self.s2t.converter.ids2tokens(text_ids)
         text_toks = [t for t in text_toks if not (t[0] == "<" and t[-1] == ">")]
-        return self.preprocessor.tokenizer.tokens2text(text_toks)
+        return self.s2t.tokenizer.tokens2text(text_toks)
+
+    def on_test_epoch_start(self):
+        self._test_outputs.clear()
 
     def test_step(self, batch, batch_idx, dataloader_idx):
         uids, batch = batch
@@ -91,10 +133,13 @@ class FinetuneOWSM(LightningModule):
         lang_id, task_id, *text_ids = batch["text"][0]
         lang_tok = self.model.token_list[lang_id]
         task_tok = self.model.token_list[task_id]
-
         ref = self._ids2text(text_ids)
+
+        device = next(self.model.parameters()).device
+        self.s2t.beam_search.to(device)
+        self.s2t.device = device
         hyp = self.s2t(
-            batch["speech"][0].type_as(self.model),
+            batch["speech"][0].to(device),
             lang_sym=lang_tok,
             task_sym=task_tok,
         )[0][3]
@@ -104,7 +149,14 @@ class FinetuneOWSM(LightningModule):
             metric_name: metric([hyp], [ref]).item()
             for metric_name, metric in self.metrics.items()
         }
-        self._log_items("test", task, lang, outputs)
+        outputs.update({"task": task, "lang": lang, "ref": ref, "hyp": hyp})
+        self._test_outputs.append(outputs)
+
+    def on_test_epoch_end(self):
+        assert self.trainer.num_devices < 2
+        df = pd.DataFrame(self._test_outputs)
+        df.to_csv(Path(self.logger.log_dir) / "test_inference.csv")
+        self._log_items("test", df, verbose=True).to_csv(Path(self.logger.log_dir) / "test_metrics.csv")
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
@@ -132,21 +184,20 @@ def main(args):
 
     # Callbacks
     checkpoint_callback = ModelCheckpoint(
-        monitor="train/acc", save_top_k=1, save_last=True, mode="max")
+        monitor="val/acc_full_all", save_top_k=1, save_last=True, mode="max")
     early_stop_callback = EarlyStopping(
         monitor="val/acc_full_all", min_delta=0.00, patience=3, verbose=False, mode="max")
 
     trainer = Trainer(
-        accelerator=args["accelerator"],
-        # devices=args["devices"],
+        accelerator="gpu" if args["devices"] > 0 else "cpu",
+        devices=args["devices"],
         fast_dev_run=args["fast_dev_run"],
         max_epochs=args["max_epochs"],
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, early_stop_callback],
         deterministic="warn",
         default_root_dir=f"{getcwd()}/exps/{args['exp_name']}_{datetime.today().isoformat()}"
     )
     trainer.fit(model, datamodule=datamodule)
-    trainer.test(ckpt_path="best", datamodule=datamodule)
 
 
 if __name__ == "__main__":
@@ -161,7 +212,6 @@ if __name__ == "__main__":
 
     # Trainer
     parser.add_argument("--exp_name", type=str, default="test", help="Experiment name (Folder to store the results)")
-    parser.add_argument("--accelerator", choices=("gpu", "cpu"), default="gpu", help="gpu or cpu")
     parser.add_argument("--devices", type=int, default=1, help="# of gpus")
     parser.add_argument("--fast_dev_run", action="store_true", help="Flag for debug mode")
     parser.add_argument("--max_epochs", type=int, default=10, help="Maximum epochs to train")

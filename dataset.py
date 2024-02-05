@@ -2,7 +2,6 @@ import json
 from itertools import chain, product
 from pathlib import Path
 
-import datasets
 import librosa
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import Dataset, DataLoader
@@ -74,28 +73,6 @@ class FieldworkDataset(Dataset):
                     "text_ctc": text_ctc,
                 })
         return data
-
-
-
-# def get_filter(task=None, lang=None):
-#     def filter_fn(row):
-#         if lang is not None and row["language"] != lang:
-#             return False
-#         if task is not None:
-#             if task == "translation":
-#                 return (not row["discard"]) and row["translation_language"] == "en"
-#         return not row["discard"]
-#     return filter_fn
-
-# def get_dataset_processor(task):
-#     def _map_fn(item):
-#         return {
-#             "speech": item["audio"],
-#             "text": f"<{item['language']}><{task_id[task]}>{item[task]}",
-#             "text_prev": "<na>",
-#             "text_ctc": item["transcription"],
-#         }
-#     return _map_fn
 
 
 class FieldworkDataModule(LightningDataModule):
@@ -173,7 +150,7 @@ class FieldworkDataModule(LightningDataModule):
                 ds,
                 batch_size=1,
                 shuffle=False,
-                num_workers=0,
+                num_workers=4,
                 collate_fn=self.collator_test,
             )
             for ds in self.test_ds.values()
