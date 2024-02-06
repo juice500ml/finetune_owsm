@@ -39,6 +39,8 @@ class FieldworkDataset(Dataset):
 
     def _parse_data(self, root, tasks, langs):
         paths = [root / f"data/{lang}/{self.split}.json" for lang in langs]
+        self.tasks = tasks
+        self.langs = [lang for path, lang in zip(paths, langs) if path.exists()]
         return list(chain.from_iterable(
             self._parse_single_data(path, task)
             for path, task in product(paths, tasks)

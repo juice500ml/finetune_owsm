@@ -169,7 +169,7 @@ def main(args):
 
     # Dataset & Model
     datamodule = FieldworkDataModule(new_tokens=new_tokens, **args)
-    unseen_langs = set(args["langs"]) - set([k.split("_")[1] for k in datamodule.valid_ds.keys()])
+    unseen_langs = set(args["langs"]) - set(datamodule.train_ds.langs)
     model = FinetuneOWSM(
         new_tokens=new_tokens,
         new_tokens_initialize=None,
