@@ -100,9 +100,9 @@ class FinetuneOWSM(LightningModule):
     def _gather(self, outputs):
         if self.trainer.num_devices > 1:
             outputs = self.all_gather(outputs)
-            metrics = set(outputs[0].keys()) - set(["task", "lang"])
             flattened_outputs = []
             for output in outputs:
+                metrics = set(output.keys()) - set(["task", "lang"])
                 values = [output[m].detach().tolist() for m in metrics]
                 for vs in zip(*values):
                     flattened_outputs.append({k: v for k, v in zip(metrics, vs)})
