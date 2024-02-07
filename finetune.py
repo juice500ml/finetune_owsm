@@ -145,10 +145,12 @@ class FinetuneOWSM(LightningModule):
         )[0][3]
 
         task, lang = self._test_ds_names[dataloader_idx].split("_")
-        outputs = {
-            metric_name: metric([hyp], [ref]).item()
-            for metric_name, metric in self.metrics.items()
-        }
+        outputs = {}
+        for metric_name, metric in self.metrics.items():
+            if (metric_name == "sacrebleu") and (len(hyp) == 0):
+                outputs[metric_name] = 0.0
+            else:
+                outputs[metric_name] = metric([hyp], [ref]).item()
         outputs.update({"task": task, "lang": lang, "ref": ref, "hyp": hyp})
         self._test_outputs.append(outputs)
 
