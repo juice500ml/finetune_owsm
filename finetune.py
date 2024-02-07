@@ -157,8 +157,8 @@ class FinetuneOWSM(LightningModule):
     def on_test_epoch_end(self):
         assert self.trainer.num_devices < 2
         df = pd.DataFrame(self._test_outputs)
-        df.to_csv(Path(self.logger.log_dir) / "test_inference.csv")
-        self._log_items("test", df, verbose=True).to_csv(Path(self.logger.log_dir) / "test_metrics.csv")
+        df.to_csv(Path(self.trainer.log_dir) / "test_inference.csv")
+        self._log_items("test", df, verbose=True).to_csv(Path(self.trainer.log_dir) / "test_metrics.csv")
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)

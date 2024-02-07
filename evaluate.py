@@ -20,6 +20,7 @@ def main(args):
     trainer = Trainer(
         accelerator="gpu" if args["devices"] > 0 else "cpu",
         devices=args["devices"],
+        default_root_dir=Path(args["checkpoint_path"]).parent.parent,
     )
     trainer.test(model=model, datamodule=datamodule)
 
