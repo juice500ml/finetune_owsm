@@ -57,7 +57,9 @@ class FieldworkDataset(Dataset):
                 continue
             if task == "translation" and value["translation_language"] != "en":
                 continue
-            
+            if len(task_id[task]) == 0:
+                continue
+
             speech = path.parent / "audio" / path.stem / key
             text_ctc = value["transcription"]
             text_prev = "<na>"
