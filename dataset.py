@@ -55,6 +55,8 @@ class FieldworkDataset(Dataset):
         for key, value in meta.items():
             if value["discard"]:
                 continue
+            if len(value[task]) == 0:
+                continue
             if task == "translation" and value["translation_language"] != "en":
                 continue
             if len(task_id[task]) == 0:
