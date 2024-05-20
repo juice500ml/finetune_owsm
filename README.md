@@ -54,7 +54,7 @@ python finetune.py \
 # Example PATH_TO_CKPT
 PATH_TO_CKPT=exps/translation_full_2024-02-06T13:50:02.501140/lightning_logs/version_141479/checkpoints/epoch=5-step=16548.ckpt
 
-python evaluate.py \
+python evaluate_model.py \
     --devices 1 \
     --checkpoint_path $PATH_TO_CKPT
 ```
