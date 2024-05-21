@@ -3,7 +3,17 @@
 - Source code for reproducing E2E OWSM-finetuned model
 - Paper: https://arxiv.org/abs/2403.13169
 
-## Installation
+## Prerequisites
+
+### Obtaining the Dataset
+
+Use `download_data.sh` to automaticall download and extract the [Fieldwork dataset](https://huggingface.co/datasets/wav2gloss/fieldwork). The script requires [git lfs](https://git-lfs.com/).
+
+```sh
+./download_data.sh
+```
+
+### Installation
 ```sh
 # conda has to be already installed
 bash install.sh
