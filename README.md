@@ -1,7 +1,12 @@
 # Wav2Gloss: Generating Interlinear Glossed Text from Speech
 - Accepted to ACL 2024
 - Source code for reproducing E2E OWSM-finetuned model
+- Dataset: https://huggingface.co/datasets/wav2gloss/fieldwork
 - Paper: https://arxiv.org/abs/2403.13169
+- XLS-R/WavLM baseline: https://github.com/juice500ml/espnet/tree/wav2gloss/
+- Poster: [poster.pdf](./poster.pdf)
+- Slides: [slides.pdf](./slides.pdf)
+- 10-minute presentation: https://drive.google.com/file/d/1nSelG6a56924JYMnnvKysb805R-lSZIa/view?usp=sharing
 
 ## Prerequisites
 
